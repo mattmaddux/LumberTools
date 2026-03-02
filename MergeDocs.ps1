@@ -9,6 +9,7 @@
 #>
 
 #Requires -Version 5.1
+param([switch]$SkipWordCheck)
 
 # ============================================================
 # SETUP
@@ -20,6 +21,50 @@ Add-Type -AssemblyName System.Drawing
 $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
 $libDir    = Join-Path $scriptDir "lib"
 $dllPath   = Join-Path $libDir "PdfSharp.dll"
+
+# ============================================================
+# WORD COM COMPATIBILITY CHECK
+# Detects bitness mismatch (e.g. 64-bit PowerShell + 32-bit Office)
+# and auto-relaunches in the matching PowerShell if needed.
+# ============================================================
+if (-not $SkipWordCheck) {
+    $wordOk = $false
+    try {
+        $testWord = New-Object -ComObject Word.Application
+        $testWord.Visible = $false  # triggers TYPE_E_CANTLOADLIBRARY on mismatch
+        $testWord.Quit()
+        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($testWord)
+        [System.GC]::Collect()
+        $wordOk = $true
+    }
+    catch {
+        if ($_.Exception.Message -match 'TYPE_E_CANTLOADLIBRARY|80029C4A') {
+            if ([Environment]::Is64BitProcess) {
+                $altPs = Join-Path $env:SystemRoot "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+            } else {
+                $altPs = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+            }
+
+            if (Test-Path $altPs) {
+                Start-Process $altPs -ArgumentList @(
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", "`"$PSCommandPath`"",
+                    "-SkipWordCheck"
+                )
+                exit
+            }
+            else {
+                [System.Windows.Forms.MessageBox]::Show(
+                    "Word is installed as a different architecture than PowerShell.`n`n" +
+                    "Word features will be unavailable. PDF-only merges will still work.",
+                    "Word Compatibility", "OK", "Warning")
+            }
+        }
+        else {
+            # Word not installed or other issue — continue, PDF merges still work
+        }
+    }
+}
 
 # Auto-download PdfSharp on first run
 if (-not (Test-Path $dllPath)) {
@@ -75,8 +120,9 @@ function Convert-WordToPdf {
 
     try {
         $word = New-Object -ComObject Word.Application
-        $word.Visible = $false
-        $word.DisplayAlerts = 0  # wdAlertsNone
+        # Visible defaults to $false via COM; DisplayAlerts defaults to all.
+        # We avoid setting these directly to prevent type library errors on
+        # systems where the startup bitness check was skipped.
 
         $doc = $word.Documents.Open([ref]$WordPath, [ref]$false, [ref]$true)  # ReadOnly
         $doc.SaveAs([ref]$tempPdf, [ref]17)  # 17 = wdFormatPDF
