@@ -122,14 +122,14 @@ function Convert-WordToPdf {
         $word = New-Object -ComObject Word.Application
         $word.DisplayAlerts = 0  # wdAlertsNone — suppress format conversion dialogs for .doc files
 
-        $doc = $word.Documents.Open([ref]$WordPath, [ref]$false, [ref]$true)  # ReadOnly
+        $doc = $word.Documents.Open($WordPath, $false, $true)  # ReadOnly
 
         if ($null -eq $doc) {
             throw "Word could not open the file. It may be corrupted or in an unsupported format."
         }
 
-        $doc.SaveAs([ref]$tempPdf, [ref]17)  # 17 = wdFormatPDF
-        $doc.Close([ref]0)  # wdDoNotSaveChanges
+        $doc.SaveAs($tempPdf, 17)  # 17 = wdFormatPDF
+        $doc.Close(0)  # wdDoNotSaveChanges
         $doc = $null
 
         return $tempPdf
@@ -138,7 +138,7 @@ function Convert-WordToPdf {
         throw "Failed to convert '$([System.IO.Path]::GetFileName($WordPath))' to PDF:`n$_"
     }
     finally {
-        if ($doc)  { try { $doc.Close([ref]0) } catch {} }
+        if ($doc)  { try { $doc.Close(0) } catch {} }
         if ($word) { try { $word.Quit()        } catch {} }
         if ($word) {
             [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
