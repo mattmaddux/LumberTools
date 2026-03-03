@@ -143,30 +143,18 @@ function Convert-WordToPdf {
     $doc = $null
 
     try {
-        # Direct COM call — matches the standard approach used by battle-tested scripts
-        $doc = $word.Documents.Open(
-            [ref]$WordPath,
-            [ref]$false,    # ConfirmConversions
-            [ref]$true,     # ReadOnly
-            [ref]$false     # AddToRecentFiles
-        )
-
-        # If the file opened in Protected View instead, extract it
-        if ($null -eq $doc -and $word.ProtectedViewWindows.Count -gt 0) {
-            $pvw = $word.ProtectedViewWindows.Item(1)
-            $doc = $pvw.Edit()
-        }
+        # Plain COM calls with no [ref] — matches TriLogic/Word2PDF.ps1
+        $doc = $word.Documents.Open($WordPath)
 
         if ($null -eq $doc) {
             throw "Word could not open the file. It may be corrupted or in an unsupported format."
         }
 
-        # ExportAsFixedFormat is the purpose-built method for PDF export
-        $doc.ExportAsFixedFormat(
-            [ref]$tempPdf,
-            [ref]17          # wdExportFormatPDF
-        )
-        $doc.Close([ref]0)   # wdDoNotSaveChanges
+        $doc.ExportAsFixedFormat($tempPdf, 17)  # 17 = wdExportFormatPDF
+        $doc.Close([ref]$false)
+
+        # Release COM reference immediately
+        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)
         $doc = $null
 
         return $tempPdf
@@ -175,7 +163,11 @@ function Convert-WordToPdf {
         throw "Failed to convert '$([System.IO.Path]::GetFileName($WordPath))' to PDF:`n$_"
     }
     finally {
-        if ($doc) { try { $doc.Close([ref]0) } catch {} }
+        if ($doc) {
+            try { $doc.Close([ref]$false) } catch {}
+            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc) } catch {}
+        }
+        [System.GC]::Collect()
     }
 }
 
