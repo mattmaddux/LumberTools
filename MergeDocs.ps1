@@ -115,60 +115,35 @@ if (-not (Test-Path $dllPath)) {
 Add-Type -Path $dllPath
 
 # ============================================================
-# HELPERS: Word COM automation for .doc/.docx to PDF conversion
+# HELPER: Convert Word docs to PDF via Word2PDF.ps1 subprocess
 # ============================================================
-function New-WordInstance {
-    $word = New-Object -ComObject Word.Application
-    $word.Visible = $false
-    $word.DisplayAlerts = 0              # wdAlertsNone
-    $word.AutomationSecurity = 3         # msoAutomationSecurityForceDisable
-    $word.Options.UpdateLinksAtOpen = $false
-    $word.Options.UpdateFieldsAtPrint = $false
-    return $word
-}
+$word2pdfScript = Join-Path $scriptDir "Word2PDF.ps1"
 
-function Close-WordInstance {
-    param($word)
-    if ($word) {
-        try { $word.Quit() } catch {}
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) } catch {}
-    }
-    [System.GC]::Collect()
-}
+function Convert-WordFilesToPdf {
+    param([string[]]$WordFiles)
 
-function Convert-WordToPdf {
-    param($word, [string]$WordPath)
+    $tempDir = Join-Path $env:TEMP "mergedocs_$(Get-Random)"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
-    $tempPdf = Join-Path $env:TEMP "merge_$(Get-Random).pdf"
-    $doc = $null
+    $result = & powershell.exe -ExecutionPolicy Bypass -File $word2pdfScript `
+        -InputFiles $WordFiles -OutputDir $tempDir 2>&1
 
-    try {
-        # Plain COM calls with no [ref] — matches TriLogic/Word2PDF.ps1
-        $doc = $word.Documents.Open($WordPath)
-
-        if ($null -eq $doc) {
-            throw "Word could not open the file. It may be corrupted or in an unsupported format."
+    $pdfPaths = @()
+    $errors = @()
+    foreach ($line in $result) {
+        if ($line -is [System.Management.Automation.ErrorRecord]) {
+            $errors += $line.ToString()
         }
-
-        $doc.ExportAsFixedFormat($tempPdf, 17)  # 17 = wdExportFormatPDF
-        $doc.Close([ref]$false)
-
-        # Release COM reference immediately
-        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)
-        $doc = $null
-
-        return $tempPdf
-    }
-    catch {
-        throw "Failed to convert '$([System.IO.Path]::GetFileName($WordPath))' to PDF:`n$_"
-    }
-    finally {
-        if ($doc) {
-            try { $doc.Close([ref]$false) } catch {}
-            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc) } catch {}
+        elseif ($line -match '\.pdf$') {
+            $pdfPaths += $line.ToString()
         }
-        [System.GC]::Collect()
     }
+
+    if ($errors.Count -gt 0) {
+        throw ($errors -join "`n")
+    }
+
+    return $pdfPaths
 }
 
 # ============================================================
@@ -386,29 +361,30 @@ $mergeBtn.Add_Click({
     $statusLabel.Text = "Merging..."
     $form.Refresh()
 
-    $word = $null
     try {
-        # Step 1: Convert any Word docs to temp PDFs (single Word instance for all)
-        $hasWordFiles = $filePaths | Where-Object {
+        # Step 1: Convert any Word docs to temp PDFs via subprocess
+        $wordFiles = @($filePaths | Where-Object {
             $ext = [System.IO.Path]::GetExtension($_).ToLower()
             $ext -eq ".doc" -or $ext -eq ".docx"
-        }
+        })
 
-        if ($hasWordFiles) {
-            $statusLabel.Text = "Starting Word..."
+        $convertedPdfs = @{}
+        if ($wordFiles.Count -gt 0) {
+            $statusLabel.Text = "Converting Word documents..."
             $form.Refresh()
-            $word = New-WordInstance
+            $pdfResults = Convert-WordFilesToPdf $wordFiles
+            # Map each input Word file to its output PDF by matching filenames
+            for ($i = 0; $i -lt $wordFiles.Count; $i++) {
+                $convertedPdfs[$wordFiles[$i]] = $pdfResults[$i]
+                $tempFiles.Add($pdfResults[$i]) | Out-Null
+            }
         }
 
         $pdfFiles = @()
         foreach ($file in $filePaths) {
             $ext = [System.IO.Path]::GetExtension($file).ToLower()
             if ($ext -eq ".doc" -or $ext -eq ".docx") {
-                $statusLabel.Text = "Converting $([System.IO.Path]::GetFileName($file))..."
-                $form.Refresh()
-                $tempPdf = Convert-WordToPdf $word $file
-                $tempFiles.Add($tempPdf) | Out-Null
-                $pdfFiles += $tempPdf
+                $pdfFiles += $convertedPdfs[$file]
             }
             else {
                 $pdfFiles += $file
@@ -448,9 +424,6 @@ $mergeBtn.Add_Click({
         $statusLabel.Text = "Merge failed."
     }
     finally {
-        # Shut down Word if we started it
-        Close-WordInstance $word
-
         # Clean up temp files from Word conversion
         foreach ($t in $tempFiles) {
             Remove-Item $t -Force -ErrorAction SilentlyContinue
