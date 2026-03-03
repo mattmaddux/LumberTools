@@ -145,7 +145,7 @@ function Convert-WordToPdf {
     try {
         # Use reflection to call Documents.Open with named parameters,
         # avoiding PowerShell's COM marshaling issues with positional args.
-        $doc = $word.GetType().InvokeMember(
+        $doc = $word.Documents.GetType().InvokeMember(
             "Open",
             [System.Reflection.BindingFlags]::InvokeMethod,
             $null,
