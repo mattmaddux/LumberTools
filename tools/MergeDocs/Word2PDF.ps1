@@ -1,9 +1,5 @@
-# *********************************************************************
-# Script : Word2PDF.ps1
-# Based on: https://gist.github.com/TriLogic/faf024344b977f67f468dd10ec570099
-# Purpose: Convert a Word document to PDF via COM automation.
-#          Accepts one or more input files and an output directory.
-# *********************************************************************
+# Word2PDF.ps1 - Convert Word documents to PDF via COM automation.
+# Accepts a file listing input paths and an output directory.
 param(
     [Parameter(Mandatory=$true)]
     [string]$InputList,
@@ -12,17 +8,13 @@ param(
     [string]$OutputDir
 )
 
-# Read file paths from the list file (one per line)
 $InputFiles = @(Get-Content -LiteralPath $InputList | Where-Object { $_.Trim() -ne '' })
 
-$appWord = $null
-$docWord = $null
+$word = $null
 $exitCode = 0
 
 try {
-    $appWord = New-Object -ComObject Word.Application
-    # Word starts hidden by default via COM; skip setting Visible to avoid
-    # TYPE_E_CANTLOADLIBRARY on machines with broken Office interop assemblies.
+    $word = New-Object -ComObject Word.Application
 
     foreach ($docFull in $InputFiles) {
         $docName = [System.IO.Path]::GetFileName($docFull)
@@ -30,19 +22,11 @@ try {
         $pdfFull = [System.IO.Path]::Combine($OutputDir, $pdfName)
 
         try {
-            # Use InvokeMember for Open to bypass broken PIAs that swallow
-            # the return value. The returned Document object works fine with
-            # direct COM calls since it's a raw __ComObject.
-            $docs = $appWord.Documents
-            $docWord = $docs.GetType().InvokeMember(
-                "Open", [System.Reflection.BindingFlags]::InvokeMethod,
-                $null, $docs, @($docFull))
-            $docWord.ExportAsFixedFormat($pdfFull, 17)
-            $docWord.Close([ref]$false)
-
-            while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
-            $docWord = $null
-            [System.GC]::Collect()
+            $doc = $word.Documents.Open($docFull)
+            $doc.SaveAs([ref]$pdfFull, [ref]17)
+            $doc.Close([ref]$false)
+            [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)
+            $doc = $null
 
             Write-Output $pdfFull
         }
@@ -50,11 +34,10 @@ try {
             Write-Error "Failed to convert '$docName': $_"
             $exitCode = 1
 
-            if ($docWord -ne $null) {
-                try { $docWord.Close([ref]$false) } catch {}
-                while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
-                $docWord = $null
-                [System.GC]::Collect()
+            if ($doc -ne $null) {
+                try { $doc.Close([ref]$false) } catch {}
+                [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc)
+                $doc = $null
             }
         }
     }
@@ -64,10 +47,10 @@ catch {
     $exitCode = 1
 }
 finally {
-    if ($appWord -ne $null) {
-        $appWord.GetType().InvokeMember("Quit", "InvokeMethod", $null, $appWord, $null)
-        while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($appWord)) {}
-        $appWord = $null
+    if ($word -ne $null) {
+        $word.Quit()
+        [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($word)
+        $word = $null
     }
     [System.GC]::Collect()
 }
