@@ -48,6 +48,9 @@ if (-not $SkipWordCheck) {
         [System.GC]::Collect()
     }
     catch {
+        # Save the error before cleanup, as inner try/catch can overwrite $_
+        $comError = "$_"
+
         # Clean up the test Word instance so it doesn't leave a zombie process
         if ($testWord) {
             try { $testWord.Quit() } catch {}
@@ -55,7 +58,7 @@ if (-not $SkipWordCheck) {
             [System.GC]::Collect()
         }
 
-        if ("$_" -match 'TYPE_E_CANTLOADLIBRARY|80029C4A') {
+        if ($comError -match 'TYPE_E_CANTLOADLIBRARY|80029C4A') {
             if ([Environment]::Is64BitProcess) {
                 $altPs = Join-Path $env:SystemRoot "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
             } else {
