@@ -12,12 +12,25 @@
 $installDir = "C:\LumberTools"
 $repoUrl    = "https://github.com/mattmaddux/LumberTools.git"
 
-# Ensure git is available
+# Ensure git is available, install via winget if missing
 $git = Get-Command git -ErrorAction SilentlyContinue
 if (-not $git) {
-    Write-Host "Git is not installed yet. Please deploy Git to this endpoint before running LumberTools Install."
-    Write-Host "Install Git via Intune/RMM first, then re-run this script."
-    exit 1
+    Write-Host "Git not found. Installing via winget..."
+    winget install --id Git.Git --source winget --silent --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Git installation failed."
+        exit 1
+    }
+    # Refresh PATH so git is available in this session
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath    = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path    = "$machinePath;$userPath"
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        Write-Error "Git was installed but could not be found in PATH."
+        exit 1
+    }
+    Write-Host "Git installed successfully."
 }
 
 if (Test-Path (Join-Path $installDir ".git")) {
