@@ -55,7 +55,7 @@ if (-not $SkipWordCheck) {
             [System.GC]::Collect()
         }
 
-        if ($_.Exception.Message -match 'TYPE_E_CANTLOADLIBRARY|80029C4A') {
+        if ("$_" -match 'TYPE_E_CANTLOADLIBRARY|80029C4A') {
             if ([Environment]::Is64BitProcess) {
                 $altPs = Join-Path $env:SystemRoot "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
             } else {
