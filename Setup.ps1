@@ -3,7 +3,7 @@
     LumberTools Setup - Creates Start Menu shortcuts for all tools.
 .DESCRIPTION
     Scans tools/*/tool.json for tool manifests and creates Start Menu
-    shortcuts under a "LumberTools" folder. Idempotent — safe to re-run
+    shortcuts under a "LumberTools" folder. Idempotent - safe to re-run
     after adding or removing tools.
 #>
 
@@ -19,7 +19,7 @@ if ($isAdmin) {
     $startMenuBase = [Environment]::GetFolderPath("CommonPrograms")
 } else {
     $startMenuBase = [Environment]::GetFolderPath("Programs")
-    Write-Host "Note: Running without admin — shortcuts will be for current user only."
+    Write-Host "Note: Running without admin - shortcuts will be for current user only."
 }
 
 $lumberMenu = Join-Path $startMenuBase "LumberTools"
