@@ -30,10 +30,9 @@ try {
         $pdfFull = [System.IO.Path]::Combine($OutputDir, $pdfName)
 
         try {
-            $docs = $appWord.GetType().InvokeMember("Documents", "GetProperty", $null, $appWord, $null)
-            $docWord = $docs.GetType().InvokeMember("Open", "InvokeMethod", $null, $docs, @($docFull))
-            $docWord.GetType().InvokeMember("ExportAsFixedFormat", "InvokeMethod", $null, $docWord, @($pdfFull, 17))
-            $docWord.GetType().InvokeMember("Close", "InvokeMethod", $null, $docWord, @(0))
+            $docWord = $appWord.Documents.Open($docFull)
+            $docWord.ExportAsFixedFormat($pdfFull, 17)
+            $docWord.Close([ref]$false)
 
             while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
             $docWord = $null
@@ -46,7 +45,7 @@ try {
             $exitCode = 1
 
             if ($docWord -ne $null) {
-                try { $docWord.GetType().InvokeMember("Close", "InvokeMethod", $null, $docWord, @(0)) } catch {}
+                try { $docWord.Close([ref]$false) } catch {}
                 while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
                 $docWord = $null
                 [System.GC]::Collect()
