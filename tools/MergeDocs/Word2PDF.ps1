@@ -30,7 +30,13 @@ try {
         $pdfFull = [System.IO.Path]::Combine($OutputDir, $pdfName)
 
         try {
-            $docWord = $appWord.Documents.Open($docFull)
+            # Use InvokeMember for Open to bypass broken PIAs that swallow
+            # the return value. The returned Document object works fine with
+            # direct COM calls since it's a raw __ComObject.
+            $docs = $appWord.Documents
+            $docWord = $docs.GetType().InvokeMember(
+                "Open", [System.Reflection.BindingFlags]::InvokeMethod,
+                $null, $docs, @($docFull))
             $docWord.ExportAsFixedFormat($pdfFull, 17)
             $docWord.Close([ref]$false)
 
