@@ -21,7 +21,8 @@ $exitCode = 0
 
 try {
     $appWord = New-Object -ComObject Word.Application
-    $appWord.Visible = $false
+    # Word starts hidden by default via COM; skip setting Visible to avoid
+    # TYPE_E_CANTLOADLIBRARY on machines with broken Office interop assemblies.
 
     foreach ($docFull in $InputFiles) {
         $docName = [System.IO.Path]::GetFileName($docFull)
@@ -31,7 +32,7 @@ try {
         try {
             $docWord = $appWord.Documents.Open($docFull)
             $docWord.ExportAsFixedFormat($pdfFull, 17)
-            $docWord.Close([ref]$false)
+            $docWord.GetType().InvokeMember("Close", "InvokeMethod", $null, $docWord, @([ref]$false))
 
             while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
             $docWord = $null
@@ -44,7 +45,7 @@ try {
             $exitCode = 1
 
             if ($docWord -ne $null) {
-                try { $docWord.Close([ref]$false) } catch {}
+                try { $docWord.GetType().InvokeMember("Close", "InvokeMethod", $null, $docWord, @([ref]$false)) } catch {}
                 while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($docWord)) {}
                 $docWord = $null
                 [System.GC]::Collect()
@@ -58,7 +59,7 @@ catch {
 }
 finally {
     if ($appWord -ne $null) {
-        $appWord.Quit()
+        $appWord.GetType().InvokeMember("Quit", "InvokeMethod", $null, $appWord, $null)
         while ([System.Runtime.InteropServices.Marshal]::ReleaseComObject($appWord)) {}
         $appWord = $null
     }

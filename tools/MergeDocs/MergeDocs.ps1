@@ -41,19 +41,20 @@ if (-not $SkipWordCheck) {
     $testWord = $null
     try {
         $testWord = New-Object -ComObject Word.Application
-        $testWord.Visible = $false  # triggers TYPE_E_CANTLOADLIBRARY on mismatch
-        $testWord.Quit()
+        # Use Documents.Count to verify COM works without triggering PIA issues
+        # that Visible/Quit can cause on machines with broken interop assemblies.
+        [void]$testWord.Documents.Count
+        $testWord.GetType().InvokeMember("Quit", "InvokeMethod", $null, $testWord, $null)
         [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($testWord)
         $testWord = $null
         [System.GC]::Collect()
     }
     catch {
-        # Save the error before cleanup, as inner try/catch can overwrite $_
         $comError = "$_"
 
         # Clean up the test Word instance so it doesn't leave a zombie process
         if ($testWord) {
-            try { $testWord.Quit() } catch {}
+            try { $testWord.GetType().InvokeMember("Quit", "InvokeMethod", $null, $testWord, $null) } catch {}
             try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($testWord) } catch {}
             [System.GC]::Collect()
         }
