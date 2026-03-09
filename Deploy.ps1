@@ -28,8 +28,10 @@ $git = Get-Command git -ErrorAction SilentlyContinue
 if (-not $git) {
     Write-Host "Git not found. Installing via winget..."
     & $winget install --id Git.Git --source winget --silent --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Git installation failed."
+    # winget exit 0 = installed, -1978335189 (0x8A150019) = no upgrade available
+    # Both mean Git is now present on the system.
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne -1978335189) {
+        Write-Error "Git installation failed (exit code $LASTEXITCODE)."
         exit 1
     }
     # Refresh PATH so git is available in this session
