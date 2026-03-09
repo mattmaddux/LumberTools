@@ -139,7 +139,10 @@ function Convert-WordFilesToPdf {
     $listFile = Join-Path $env:TEMP "mergedocs_list_$(Get-Random).txt"
     $WordFiles | Set-Content -LiteralPath $listFile -Encoding UTF8
 
-    $result = & powershell.exe -ExecutionPolicy Bypass -File $word2pdfScript `
+    # Use the current PowerShell executable so we match the bitness that
+    # was selected during the Word COM compatibility check at startup.
+    $psExe = (Get-Process -Id $PID).Path
+    $result = & $psExe -ExecutionPolicy Bypass -File $word2pdfScript `
         -InputList $listFile -OutputDir $tempDir 2>&1
 
     Remove-Item $listFile -Force -ErrorAction SilentlyContinue
