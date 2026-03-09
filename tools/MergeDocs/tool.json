@@ -1,6 +1,7 @@
 {
     "name": "MergeDocs",
-    "displayName": "Merge Documents",
+    "displayName": "MergeDocs",
     "description": "Merge PDFs and Word documents into a single PDF",
-    "launcher": "MergeDocs.bat"
+    "launcher": "MergeDocs.bat",
+    "icon": "MergeDocs.ico"
 }

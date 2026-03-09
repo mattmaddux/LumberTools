@@ -35,17 +35,18 @@ $manifests = Get-ChildItem -Path $toolsDir -Filter "tool.json" -Recurse -ErrorAc
 foreach ($manifestFile in $manifests) {
     $manifest = Get-Content $manifestFile.FullName -Raw | ConvertFrom-Json
     $toolDir  = $manifestFile.DirectoryName
-    $launcherPath = Join-Path $toolDir $manifest.launcher
+    $scriptPath = Join-Path $toolDir ($manifest.name + ".ps1")
 
-    if (-not (Test-Path $launcherPath)) {
-        Write-Warning "Launcher not found for '$($manifest.displayName)': $launcherPath"
+    if (-not (Test-Path $scriptPath)) {
+        Write-Warning "Script not found for '$($manifest.displayName)': $scriptPath"
         continue
     }
 
     $lnkName  = "$($manifest.displayName).lnk"
     $lnkPath  = Join-Path $lumberMenu $lnkName
     $shortcut = $shell.CreateShortcut($lnkPath)
-    $shortcut.TargetPath       = $launcherPath
+    $shortcut.TargetPath       = "powershell.exe"
+    $shortcut.Arguments        = "-ExecutionPolicy Bypass -File `"$scriptPath`""
     $shortcut.WorkingDirectory = $toolDir
     $shortcut.Description      = $manifest.description
     if ($manifest.icon) {
